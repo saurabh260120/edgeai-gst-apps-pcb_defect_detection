@@ -161,7 +161,7 @@ class PostProcessClassification(PostProcess):
 class PostProcessDetection(PostProcess):
     def __init__(self, flow):
         super().__init__(flow)
-
+        counter=0
     def __call__(self, img, results):
         """
         Post process function for detection
@@ -194,18 +194,37 @@ class PostProcessDetection(PostProcess):
             bbox[..., self.model.formatter["dst_indices"]] = bbox_copy[
                 ..., self.model.formatter["src_indices"]
             ]
-
+        
         if not self.model.normalized_detections:
             bbox[..., (0, 2)] /= self.model.resize[0]
             bbox[..., (1, 3)] /= self.model.resize[1]
-
+        b_num=0
         for b in bbox:
             if b[5] > self.model.viz_threshold:
+                b_num+=1
                 if type(self.model.label_offset) == dict:
                     class_name = self.model.classnames[self.model.label_offset[int(b[4])]]
                 else:
                     class_name = self.model.classnames[self.model.label_offset + int(b[4])]
                 img = self.overlay_bounding_box(img, b, class_name)
+                
+        cv2.rectangle(
+            img,
+            (0, 0),
+            (200, 30),
+            (255,255,255),
+            -1,
+        )
+        
+        # PUT THE NUMBER OF CRACK TEXT
+        cv2.putText(
+            img,
+            "No. of Defects:"+str(b_num),
+            (0, 25),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.75,
+            (0, 0, 0),2,
+        )
 
         if self.debug:
             self.debug.log(self.debug_str)
@@ -228,31 +247,47 @@ class PostProcessDetection(PostProcess):
             int(box[2] * frame.shape[1]),
             int(box[3] * frame.shape[0]),
         ]
-        box_color = (20, 220, 20)
-        text_color = (0, 0, 0)
-        cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]), box_color, 2)
+        
+        if class_name=="open":
+          cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]), (0, 0, 255), 2)
+        if class_name=="short":
+          cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]),(255, 0, 0), 2)
+        if class_name=="mousebite":
+          cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]), (0, 255, 0), 2)
+        if class_name=="spur":
+          cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]), (255, 51, 153), 2)
+        if class_name=="copper":
+          cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]), (204, 0, 204), 2)
+        if class_name=="pin-hole":
+          cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]), (255, 255, 153), 2)
+        
+        (label_width, label_height), baseline = cv2.getTextSize(class_name, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
         cv2.rectangle(
-            frame,
-            (int((box[2] + box[0]) / 2) - 5, int((box[3] + box[1]) / 2) + 5),
-            (int((box[2] + box[0]) / 2) + 160, int((box[3] + box[1]) / 2) - 15),
-            box_color,
-            -1,
-        )
+              frame,
+              ( int(box[0])-5, int(box[1]) -5-label_height),
+              (int(box[2])+label_width -25 , int(box[1])),
+              (255,255,255),
+              -1,)
+        cv2.rectangle(
+              frame,
+              ( int(box[0])-5, int(box[1]) -5-label_height),
+              (int(box[2])+label_width -25 , int(box[1])),
+              (0,0,0),
+              )
         cv2.putText(
             frame,
             class_name,
-            (int((box[2] + box[0]) / 2), int((box[3] + box[1]) / 2)),
+            (int(box[0]), int(box[1])-5),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
-            text_color,
+            (0,0,0),
+            1,
         )
-
         if self.debug:
             self.debug_str += class_name
             self.debug_str += str(box) + "\n"
 
         return frame
-
 
 class PostProcessSegmentation(PostProcess):
     def __call__(self, img, results):
